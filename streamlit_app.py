@@ -22,21 +22,9 @@ def check_api_connection():
 
 api_connected = check_api_connection()
 
+# Main title
 st.title("💡 AI Support Assistant")
-
-# Connection status indicator
-col1, col2 = st.columns([1, 4])
-with col1:
-    if api_connected:
-        st.success("🟢 API Connected")
-    else:
-        st.error("🔴 API Disconnected")
-with col2:
-    st.markdown("Retrieval-Augmented Generation (RAG) powered customer support hub. Ask anything based on your uploaded documents!")
-
-if not api_connected:
-    st.warning("⚠️ **FastAPI backend is not running.** Please start it with: `python -m uvicorn app.main:app --port 8000`")
-    st.info("Or configure API URL in environment variable: `API_URL=http://your-server:8000/api`")
+st.markdown("Retrieval-Augmented Generation (RAG) powered customer support hub. Ask anything based on your uploaded documents!")
 
 # Initialize session state for chat history
 if "messages" not in st.session_state:

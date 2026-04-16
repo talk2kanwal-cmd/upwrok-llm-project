@@ -35,7 +35,28 @@ class DocumentIngestionService:
         if file_name.lower().endswith('.pdf'):
             raw_text = self.extract_text_from_pdf(file_bytes)
         elif file_name.lower().endswith('.txt'):
-            raw_text = file_bytes.decode('utf-8')
+            # Handle BOM and detect encoding
+            if file_bytes.startswith(b'\xff\xfe'):
+                raw_text = file_bytes.decode('utf-16-le')
+            elif file_bytes.startswith(b'\xfe\xff'):
+                raw_text = file_bytes.decode('utf-16-be')
+            elif file_bytes.startswith(b'\xef\xbb\xbf'):
+                # Remove UTF-8 BOM
+                raw_text = file_bytes[3:].decode('utf-8')
+            else:
+                try:
+                    raw_text = file_bytes.decode('utf-8')
+                except UnicodeDecodeError:
+                    # Try common encodings if UTF-8 fails
+                    for encoding in ['latin-1', 'cp1252', 'iso-8859-1', 'utf-16']:
+                        try:
+                            raw_text = file_bytes.decode(encoding)
+                            break
+                        except UnicodeDecodeError:
+                            continue
+                    else:
+                        # If all encodings fail, use error handling
+                        raw_text = file_bytes.decode('utf-8', errors='replace')
         else:
             raise ValueError("Unsupported file format. Only PDF and TXT are supported for now.")
         
