@@ -39,7 +39,9 @@ with st.sidebar:
     if st.button("Upload & Index"):
         if uploaded_file is not None:
             with st.spinner("Extracting, segmenting, and embedding..."):
-                files = {"file": (uploaded_file.name, uploaded_file, "application/octet-stream")}
+                # Reset file pointer to beginning
+                uploaded_file.seek(0)
+                files = {"file": (uploaded_file.name, uploaded_file.read(), "text/plain")}
                 try:
                     response = requests.post(f"{API_URL}/upload", files=files, timeout=30)
                     if response.status_code == 200:
@@ -49,10 +51,12 @@ with st.sidebar:
                         st.error(f"Error {response.status_code}: {response.text}")
                 except requests.exceptions.Timeout:
                     st.error("Upload timed out. Please try with a smaller file.")
-                except requests.exceptions.ConnectionError:
-                    st.error("Connection lost. Please check if the API is still running.")
+                except requests.exceptions.ConnectionError as e:
+                    st.error(f"Connection lost: {str(e)}")
+                    st.info("Make sure FastAPI is running: `python -m uvicorn app.main:app --port 8000`")
                 except Exception as e:
                     st.error(f"Unexpected error: {str(e)}")
+                    st.info(f"Debug info - API URL: {API_URL}")
         else:
             st.warning("Please drag & drop a file first.")
 
