@@ -1,5 +1,8 @@
 # 🚀 AI Customer Support Hub (RAG System)
 
+[![CI Pipeline](https://github.com/yourusername/ai-customer-support/actions/workflows/main.yml/badge.svg)](https://github.com/yourusername/ai-customer-support/actions/workflows/main.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 AI-Powered Intelligent Customer Support System is a Retrieval-Augmented Generation (RAG) based solution that leverages Large Language Models (LLMs) to provide accurate, context-aware responses to user queries. The system processes company documents (PDFs, FAQs, manuals), retrieves relevant information using a vector database, and generates intelligent answers through an LLM. It is built with a scalable FastAPI backend, integrates semantic search, and follows MLOps practices for deployment, monitoring, and continuous improvement.
 ---
 
@@ -78,6 +81,23 @@ To instantly spool the service in an isolated environment without Python depende
 ```bash
 docker-compose up --build
 ```
+
+### 6. Testing
+Run the test suite:
+```bash
+pytest
+```
+
+For coverage report:
+```bash
+pytest --cov=app
+```
+
+---
+
+##  Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ---
 
