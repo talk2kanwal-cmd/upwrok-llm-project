@@ -64,28 +64,10 @@ def health_check():
         raise HTTPException(status_code=503, detail="Service unavailable")
 
 @app.post("/setup-api-key")
-@limiter.limit("5/minute")
-async def setup_api_key(request, api_key: str = None):
+def setup_api_key(api_key: str):
     """Securely store API key (for development/setup only)."""
     if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=403, detail="API key setup not allowed in production")
-    
-    # Try to get API key from form data or JSON
-    if not api_key:
-        try:
-            # Try form data first
-            form_data = await request.form()
-            api_key = form_data.get("api_key")
-        except:
-            pass
-        
-        if not api_key:
-            try:
-                # Try JSON body
-                json_data = await request.json()
-                api_key = json_data.get("api_key")
-            except:
-                pass
     
     if not api_key:
         raise HTTPException(status_code=400, detail="API key is required")
@@ -97,7 +79,7 @@ async def setup_api_key(request, api_key: str = None):
         logger.error(f"Failed to store API key: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to store API key")
 
-# Static files
+# Static files (mount after all API routes)
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 static_dir = Path(__file__).parent / "static"
