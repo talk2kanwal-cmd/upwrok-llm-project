@@ -1,12 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from typing import List
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.services.ingestion import ingestion_service
 from app.services.vector_store import vector_store_service
 from app.services.llm_service import rag_service
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 class ChatRequest(BaseModel):
     query: str
@@ -17,7 +20,8 @@ class ChatResponse(BaseModel):
     context_sources: List[str]
 
 @router.post("/upload", tags=["Ingestion"])
-async def upload_document(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def upload_document(request, file: UploadFile = File(...)):
     """Uploads a PDF or text document, chunks it, and adds it to the vector database."""
     if not file.filename.lower().endswith(('.pdf', '.txt')):
         raise HTTPException(status_code=400, detail="Only PDF and TXT files are supported.")
@@ -43,20 +47,21 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @router.post("/chat", response_model=ChatResponse, tags=["Retrieval & Generation"])
-async def chat_with_bot(request: ChatRequest):
+@limiter.limit("30/minute")
+async def chat_with_bot(request, chat_request: ChatRequest):
     """Processes a user query by retrieving context and calling the LLM."""
     try:
         # Phase 5: Semantic Retrieval from FAISS
-        docs = vector_store_service.retrieve_context(request.query)
+        docs = vector_store_service.retrieve_context(chat_request.query)
         
         # Phase 6: Language Model generation with strict prompt
-        response_text = rag_service.generate_response(request.query, docs)
+        response_text = rag_service.generate_response(chat_request.query, docs)
         
         # Extract unique sources for transparency
         sources = list(set([doc.metadata.get("source", "Unknown") for doc in docs]))
         
         return ChatResponse(
-            query=request.query,
+            query=chat_request.query,
             response=response_text,
             context_sources=sources
         )

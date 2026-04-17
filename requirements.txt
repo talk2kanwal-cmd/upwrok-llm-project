@@ -12,3 +12,6 @@ tf-keras
 langchain-community
 langchain-huggingface
 streamlit
+cryptography
+slowapi
+redis

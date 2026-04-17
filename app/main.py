@@ -1,32 +1,103 @@
 import os
 os.environ["USE_TF"] = "0"
 os.environ["USE_TORCH"] = "1"
-import time
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
+from app.core.middleware import setup_security_middleware, limiter
 from app.api.endpoints import router as api_router
+from app.core.security import security
 
-# Configure basic logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# Configure production logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("app.log") if settings.ENVIRONMENT == "production" else logging.NullHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title=settings.PROJECT_NAME)
+# Create FastAPI app with production settings
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="AI-Powered Customer Support System with RAG",
+    version="2.0.0",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None
+)
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    logger.info(f"{request.method} {request.url.path} - completed in {process_time:.4f}s - status {response.status_code}")
-    return response
+# Setup security middleware
+setup_security_middleware(app)
+
+# Rate limit exception handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."}
+    )
 
 app.include_router(api_router, prefix="/api")
 
 @app.get("/health")
+@limiter.limit("100/minute")
 def health_check():
-    return {"status": "ok", "project": settings.PROJECT_NAME}
+    """Enhanced health check with system status."""
+    try:
+        # Test API key availability
+        api_key_status = "valid" if settings.GROQ_API_KEY else "missing"
+        
+        return {
+            "status": "ok",
+            "project": settings.PROJECT_NAME,
+            "environment": settings.ENVIRONMENT,
+            "api_key_status": api_key_status,
+            "version": "2.0.0"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=503, detail="Service unavailable")
 
+@app.post("/setup-api-key")
+@limiter.limit("5/minute")
+async def setup_api_key(request, api_key: str = None):
+    """Securely store API key (for development/setup only)."""
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=403, detail="API key setup not allowed in production")
+    
+    # Try to get API key from form data or JSON
+    if not api_key:
+        try:
+            # Try form data first
+            form_data = await request.form()
+            api_key = form_data.get("api_key")
+        except:
+            pass
+        
+        if not api_key:
+            try:
+                # Try JSON body
+                json_data = await request.json()
+                api_key = json_data.get("api_key")
+            except:
+                pass
+    
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required")
+    
+    try:
+        security.store_api_key(api_key)
+        return {"status": "success", "message": "API key stored securely"}
+    except Exception as e:
+        logger.error(f"Failed to store API key: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to store API key")
+
+# Static files
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 static_dir = Path(__file__).parent / "static"
